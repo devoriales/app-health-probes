@@ -25,19 +25,54 @@ var (
 	timestamps = make(map[string]time.Time)
 )
 
-// Function to simulate a long startup time
-func simulateLongStartup(seconds int) {
-	time.Sleep(time.Duration(seconds) * time.Second)
+// Function to simulate a long startup time with actual computation
+func simulateLongStartup(limit int) {
+	start := time.Now()
+	count := 0
+	// log out limit to the console
+	fmt.Printf("Limit: %d\n", limit)
+
+	// Naive prime number calculation to consume CPU
+	for num := 2; count < limit; num++ {
+		if isPrime(num) {
+			count++
+		}
+		if time.Since(start) > 60*time.Second { // Ensure we run for about 1 minute
+			break
+		}
+	}
+
+	// Mark startup as complete
 	atomic.StoreInt32(&startupComplete, 1)
 	setProbeTimestamp("startupProbe")
+
+	// Create a file to indicate that the startup is complete
 	_, err := os.Create("/tmp/startup-file")
+	// write to the file and date
+	err = os.WriteFile("/tmp/startup-file", []byte(`Startup complete at ` + time.Now().Format("2006-01-02T15:04:05")), 0644)
 	if err != nil {
 		log.Fatalf("Failed to create startup complete file: %v", err)
 	}
+	
+}
+
+// Helper function to check if a number is prime
+func isPrime(n int) bool {
+	if n < 2 {
+		return false
+	}
+	for i := 2; i*i <= n; i++ {
+		if n%i == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<h1>Valkyrie Application</h1>")
+	fmt.Fprintf(w, "<br>")
+	fmt.Fprintf(w, "<p>Welcome to the Valkyrie application. The application is used to trigger Kubernetes liveness, readiness, and startup probes.</p>")
 	fmt.Fprintf(w, "<br>")
 	fmt.Fprintf(w, "<br><a href='/liveness-health'>Liveness Health</a>")
 	fmt.Fprintf(w, "<br><a href='/readiness-health'>Readiness Health</a>")
@@ -49,45 +84,100 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<label for='readiness-failure-toggle'>Simulate Readiness Failure:</label>")
 	fmt.Fprintf(w, "<input type='checkbox' id='readiness-failure-toggle' onclick='toggleReadinessFailure()' %s>", getToggleChecked(&simulateReadinessFailure))
 	fmt.Fprintf(w, "<br><br>")
-	fmt.Fprintf(w, "<strong>Liveness Status: </strong><span id='liveness-indicator'>%s</span>", getStatusIndicator(&simulateLivenessFailure, "liveness"))
-	fmt.Fprintf(w, "<br><strong>Readiness Status: </strong><span id='readiness-indicator'>%s</span>", getStatusIndicator(&simulateReadinessFailure, "readiness"))
+	fmt.Fprintf(w, "<strong>Liveness Status: </strong><span id='liveness-indicator' class='status-starting'>starting</span>")
+	fmt.Fprintf(w, "<br><strong>Readiness Status: </strong><span id='readiness-indicator' class='status-starting'>not ready</span>")
+
+	// Add CSS for colors
+	fmt.Fprintf(w, "<style>")
+	fmt.Fprintf(w, ".status-up { color: green; font-weight: bold; }")
+	fmt.Fprintf(w, ".status-down { color: red; font-weight: bold; }")
+	fmt.Fprintf(w, ".status-starting { color: orange; font-weight: bold; }")
+	fmt.Fprintf(w, "</style>")
+
+	// JavaScript
 	fmt.Fprintf(w, "<script>")
 	fmt.Fprintf(w, "function toggleLivenessFailure() { fetch('/toggle-liveness-failure').then(response => response.text()).then(data => { console.log(data); updateStatus(); }); }")
 	fmt.Fprintf(w, "function toggleReadinessFailure() { fetch('/toggle-readiness-failure').then(response => response.text()).then(data => { console.log(data); updateStatus(); }); }")
+
+	// Function to update the status dynamically
 	fmt.Fprintf(w, "function updateStatus() {")
-	fmt.Fprintf(w, "fetch('/liveness-health').then(response => { if (response.ok) { return response.json(); } else { return response.text(); } }).then(data => { if (typeof data === 'object' && data.status) { document.getElementById('liveness-indicator').innerText = data.status; } else { document.getElementById('liveness-indicator').innerText = data; } });")
-	fmt.Fprintf(w, "fetch('/readiness-health').then(response => { if (response.ok) { return response.json(); } else { return response.text(); } }).then(data => { if (typeof data === 'object' && data.status) { document.getElementById('readiness-indicator').innerText = data.status; } else { document.getElementById('readiness-indicator').innerText = data; } });")
+
+	// Fetch Liveness Status
+	fmt.Fprintf(w, "fetch('/liveness-health').then(response => {")
+	fmt.Fprintf(w, "    var livenessElement = document.getElementById('liveness-indicator');")
+	fmt.Fprintf(w, "    if (!response.ok) {") 
+	fmt.Fprintf(w, "        livenessElement.innerText = 'down';")
+	fmt.Fprintf(w, "        livenessElement.classList.remove('status-up', 'status-starting');") 
+	fmt.Fprintf(w, "        livenessElement.classList.add('status-down');") 
+	fmt.Fprintf(w, "        return;") 
+	fmt.Fprintf(w, "    }") 
+	fmt.Fprintf(w, "    return response.text();")
+	fmt.Fprintf(w, "}).then(data => {")
+	fmt.Fprintf(w, "    if (data) {")
+	fmt.Fprintf(w, "        var livenessElement = document.getElementById('liveness-indicator');")
+	fmt.Fprintf(w, "        livenessElement.innerText = data;")
+	fmt.Fprintf(w, "        livenessElement.classList.remove('status-down', 'status-starting');")
+	fmt.Fprintf(w, "        if (data === 'up') { livenessElement.classList.add('status-up'); }")
+	fmt.Fprintf(w, "        else { livenessElement.classList.add('status-starting'); }")
+	fmt.Fprintf(w, "    }")
+	fmt.Fprintf(w, "});")
+
+	// Fetch Readiness Status
+	fmt.Fprintf(w, "fetch('/readiness-health').then(response => {")
+	fmt.Fprintf(w, "    var readinessElement = document.getElementById('readiness-indicator');")
+	fmt.Fprintf(w, "    if (!response.ok) {")
+	fmt.Fprintf(w, "        readinessElement.innerText = 'not ready';")
+	fmt.Fprintf(w, "        readinessElement.classList.remove('status-up', 'status-starting');") 
+	fmt.Fprintf(w, "        readinessElement.classList.add('status-down');") 
+	fmt.Fprintf(w, "        return;") 
+	fmt.Fprintf(w, "    }")
+	fmt.Fprintf(w, "    return response.text();")
+	fmt.Fprintf(w, "}).then(data => {")
+	fmt.Fprintf(w, "    if (data) {")
+	fmt.Fprintf(w, "        var readinessElement = document.getElementById('readiness-indicator');")
+	fmt.Fprintf(w, "        readinessElement.innerText = data;")
+	fmt.Fprintf(w, "        readinessElement.classList.remove('status-down', 'status-starting');")
+	fmt.Fprintf(w, "        if (data === 'ready') { readinessElement.classList.add('status-up'); }")
+	fmt.Fprintf(w, "        else { readinessElement.classList.add('status-starting'); }")
+	fmt.Fprintf(w, "    }")
+	fmt.Fprintf(w, "});")
+
 	fmt.Fprintf(w, "}")
-	fmt.Fprintf(w, "setInterval(updateStatus, 5000);")
+
+	// Automatically update status every 2 seconds
+	fmt.Fprintf(w, "setInterval(updateStatus, 2000);")
 	fmt.Fprintf(w, "</script>")
 }
-
 // Handler to check the liveness of the application
 func livenessHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if atomic.LoadInt32(&simulateLivenessFailure) == 1 {
-		http.Error(w, `{"status": "down"}`, http.StatusInternalServerError)
+		// sleep for 2 seconds to simulate a slow response
+		time.Sleep(2 * time.Second)
+		http.Error(w, `down`, http.StatusInternalServerError)
 		return
 	}
 	// If the application is still starting up, return a 503
 	if atomic.LoadInt32(&startupComplete) == 0 {
-		http.Error(w, `{"status": "starting"}`, http.StatusServiceUnavailable)
+		http.Error(w, `starting`, http.StatusServiceUnavailable)
 		return
 	}
+	// If the application has started up, return a 200
 	setProbeTimestamp("livenessProbe") // Capture liveness timestamp
-	fmt.Fprintf(w, `{"status": "up"}`)
+	fmt.Fprintf(w, `up`)
 }
 
 // Handler to check the readiness of the application
 func readinessHealthHandler(w http.ResponseWriter, r *http.Request) {
+	// sleep for 2 seconds to simulate a slow response
 	if atomic.LoadInt32(&simulateReadinessFailure) == 1 {
-		http.Error(w, `{"status": "not ready"}`, http.StatusServiceUnavailable)
+		http.Error(w, `not ready`, http.StatusServiceUnavailable)
 		return
 	}
 	if atomic.LoadInt32(&startupComplete) == 0 {
-		http.Error(w, `{"status": "not ready"}`, http.StatusServiceUnavailable)
+		http.Error(w, `not ready`, http.StatusServiceUnavailable)
 		return
 	}
-	fmt.Fprintf(w, `{"status": "ready"}`)
+	fmt.Fprintf(w, `ready`)
 }
 
 func toggleLivenessFailureHandler(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +249,7 @@ func getStatusIndicator(failureFlag *int32, probeType string) string {
 }
 
 func main() {
-	go simulateLongStartup(6) // Simulate a long startup time
+	go simulateLongStartup(10_000_000)
 
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/liveness-health", livenessHealthHandler)
