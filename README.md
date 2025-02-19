@@ -15,6 +15,12 @@ This is a project related to a tutorial on how to enable Kubernetes probes.
 go build -o main main.go
 ```
 
+## Run it locally
+```bash
+./main
+```
+
+
 ## init the go module
 This will create a go.mod file which will be used to manage the dependencies of the application:
 
