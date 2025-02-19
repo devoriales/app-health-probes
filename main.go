@@ -36,6 +36,8 @@ func simulateLongStartup(limit int) {
 	for num := 2; count < limit; num++ {
 		if isPrime(num) {
 			count++
+			// print out the count to the console
+			fmt.Printf("Count: %d\n", count)
 		}
 		if time.Since(start) > 60*time.Second { // Ensure we run for about 1 minute
 			break
@@ -158,11 +160,12 @@ func livenessHealthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// If the application is still starting up, return a 503
 	if atomic.LoadInt32(&startupComplete) == 0 {
-		http.Error(w, `starting`, http.StatusServiceUnavailable)
+		http.Error(w, `down`, http.StatusServiceUnavailable)
 		return
 	}
 	// If the application has started up, return a 200
 	setProbeTimestamp("livenessProbe") // Capture liveness timestamp
+	// return 200
 	fmt.Fprintf(w, `up`)
 }
 
@@ -249,7 +252,7 @@ func getStatusIndicator(failureFlag *int32, probeType string) string {
 }
 
 func main() {
-	go simulateLongStartup(10_000_000)
+	go simulateLongStartup(43017763)
 
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/liveness-health", livenessHealthHandler)
