@@ -1,8 +1,14 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: valkyrie
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: critical-app
-  namespace: supera
+  namespace: valkyrie
 spec:
   replicas: 1
   selector:
@@ -15,44 +21,51 @@ spec:
     spec:
       containers:
       - name: critical-app
-        image: supera/k8s-probe-test-valkyrie:1.1.1-lime
+        image: devoriales-registry:5000/valkyrie-app:1.3
         ports:
         - containerPort: 8080
+
+        # Startup Probe - Determines when the application has successfully started
         startupProbe:
           exec:
             command:
             - sh
             - -c
-            - "test -f /tmp/startup-file"
-          initialDelaySeconds: 10
-          periodSeconds: 10   # How often (in seconds) to perform the probe.
-          timeoutSeconds: 1   # Number of seconds after which the probe times out.
-          failureThreshold: 5 # How many times the probe can fail before the pod is marked as Unhealthy
-          successThreshold: 1 # Minimum consecutive successes for the probe to be considered successful
+            - "test -f /tmp/startup-file"  # Checks if a file exists to indicate startup completion
+          initialDelaySeconds: 10  # How long to wait before running the first probe check
+          periodSeconds: 10        # How often (in seconds) to perform the probe
+          timeoutSeconds: 10       # Number of seconds after which the probe times out
+          failureThreshold: 7      # How many times the probe can fail before the pod is marked as Unhealthy
+          successThreshold: 1      # Minimum number of consecutive successes before marking the container as started
+
+        # Liveness Probe - Determines if the application is still running
         livenessProbe:
           httpGet:
-            path: /liveness-health
+            path: /liveness-health  # Calls this endpoint to check if the app is alive
             port: 8080
-          initialDelaySeconds: 10 # How long to wait before running the probe
-          periodSeconds: 5    # How often (in seconds) to perform the probe.
-          timeoutSeconds: 2   # Number of seconds after which the probe times out.
-          successThreshold: 1 # Default and recommended for liveness
-          failureThreshold: 3 # Determines how many times the probe must fail to mark the pod as Unhealthy
+          initialDelaySeconds: 10  # How long to wait before running the first probe check
+          periodSeconds: 5         # How often (in seconds) to perform the probe
+          timeoutSeconds: 2        # Number of seconds after which the probe times out
+          successThreshold: 1      # Minimum number of consecutive successes before marking the container as live
+          failureThreshold: 3      # How many times the probe can fail before the pod is marked as Unhealthy
+
+        # Readiness Probe - Determines if the application is ready to receive traffic
         readinessProbe:
-          tcpSocket: # Check if the port is open
+          httpGet:
+            path: /readiness-health  # Calls this endpoint to check if the app is ready
             port: 8080
-          initialDelaySeconds: 10 # How long to wait before running the probe
-          periodSeconds: 5     # How often (in seconds) to perform the probe.
-          timeoutSeconds: 2   # Number of seconds after which the probe times out.
-          successThreshold: 1 # Typically 1 for readiness to mark the pod as Ready after being successful once
-          failureThreshold: 3 # How many times the probe can fail before the pod is marked as Unready
+          initialDelaySeconds: 5   # How long to wait before running the first probe check
+          periodSeconds: 10        # How often (in seconds) to perform the probe
+          timeoutSeconds: 2        # Number of seconds after which the probe times out
+          failureThreshold: 3      # How many times the probe can fail before the pod is marked as Not Ready
+          successThreshold: 1      # Minimum number of consecutive successes before marking the container as Ready
 ---
-# clusterip service
+# ClusterIP Service - Exposes the application within the cluster
 apiVersion: v1
 kind: Service
 metadata:
   name: critical-app-clusterip
-  namespace: supera
+  namespace: valkyrie
 spec:
   selector:
     app: critical-app
@@ -60,3 +73,24 @@ spec:
   - protocol: TCP
     port: 80
     targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: valkyrie-ingress
+  namespace: valkyrie
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: valkyrie.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: critical-app-clusterip
+            port:
+              number: 80
