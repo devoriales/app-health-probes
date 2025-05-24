@@ -25,9 +25,6 @@ FROM alpine:latest
 
 WORKDIR /root/
 
-# make dir for /tmp/startup-file
-# RUN mkdir -p /tmp/startup-file
-
 # Copy the binary from the builder stage
 COPY --from=builder /app/main .
 

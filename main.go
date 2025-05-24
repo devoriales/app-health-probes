@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -252,7 +253,16 @@ func getStatusIndicator(failureFlag *int32, probeType string) string {
 }
 
 func main() {
-	go simulateLongStartup(43017763)
+	primeTimeCountStr := os.Getenv("PRIME_NUMBER_COUNT") // this comes from the deployment.yaml file
+    
+	// Convert the string to an integer
+	primeTimeCount, err := strconv.Atoi(primeTimeCountStr)
+	if err != nil {
+		log.Fatalf("Error converting PRIME_NUMBER_COUNT to integer: %v", err)
+	}
+    
+	// Start the long startup process in a separate goroutine
+	go simulateLongStartup(primeTimeCount)
 
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/liveness-health", livenessHealthHandler)
