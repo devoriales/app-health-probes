@@ -13,8 +13,11 @@ This is a project related to a tutorial on how to enable Kubernetes probes. The 
 
 ## Link to the tutorial
 
-[Kubernetes Probes Tutorial - Part 1](link-to-tutorial-part-1)
-[Kubernetes Probes Tutorial - Part 2](link-to-tutorial-part-2)
+[mastering-kubernetes-health-checks-probes-for-application-resilience - Part 1](https://devoriales.com/post/136/mastering-kubernetes-health-checks-probes-for-application-resilience-part-1-out-of-3)
+
+[mastering-kubernetes-health-checks-probes-for-application-resilience - Part 2](https://devoriales.com/post/335/mastering-kubernetes-health-checks-deploy-application-with-probe-endpoints-part-2-out-of-3)
+
+[mastering-kubernetes-health-checks-probes-for-application-resilience - Part 3](https://devoriales.com/post/336/mastering-kubernetes-health-checks-probe-configurations-with-valkyrie-part-3-out-of-3)
 
 ## Quick Start with k3d (Recommended)
 
@@ -137,14 +140,11 @@ docker buildx build \
 # Create cluster with 1 server and 2 agents
 k3d cluster create devoriales-cluster \
   --servers 1 \
-  --agents 2 \
-  --registry-create registry.localhost:5000
+  --agents 1 \
+  --registry-create registry.localhost:5000 \
+  -p "8080:80@loadbalancer" \
+  -p "8443:443@loadbalancer"
 
-# Create larger cluster with multiple servers (HA)
-k3d cluster create devoriales-cluster \
-  --servers 3 \
-  --agents 3 \
-  --registry-create registry.localhost:5000
 
 # Verify nodes
 kubectl get nodes -o wide

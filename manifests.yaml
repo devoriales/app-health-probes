@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: critical-app
-        image: registry.localhost:5000/valkyrie-app:1.0
+        image: registry.localhost:5000/valkyrie-app:1.4
         ports:
         - containerPort: 8080
 
@@ -35,8 +35,9 @@ spec:
           initialDelaySeconds: 10  # How long to wait before running the first probe check
           periodSeconds: 10        # How often (in seconds) to perform the probe
           timeoutSeconds: 10       # Number of seconds after which the probe times out
-          failureThreshold: 7      # How many times the probe can fail before the pod is marked as Unhealthy
-          successThreshold: 1      # Minimum number of consecutive successes before marking the container as started
+          failureThreshold: 5     # How many times the probe can fail before the pod is marked as Unhealthy
+          successThreshold: 1      # Minimum number of consecutive successes before marking the container as started. For startup probes, this is set to 1.
+          terminationGracePeriodSeconds: 30  # Time to wait before forcefully terminating the container if it doesn't start in time
 
         # Liveness Probe - Determines if the application is still running
         livenessProbe:
@@ -44,24 +45,25 @@ spec:
             path: /liveness-health  # Calls this endpoint to check if the app is alive
             port: 8080
           initialDelaySeconds: 10  # How long to wait before running the first probe check
-          periodSeconds: 5         # How often (in seconds) to perform the probe
-          timeoutSeconds: 2        # Number of seconds after which the probe times out
-          successThreshold: 1      # Minimum number of consecutive successes before marking the container as live
-          failureThreshold: 3      # How many times the probe can fail before the pod is marked as Unhealthy
+          periodSeconds: 10        # How often (in seconds) to perform the probe
+          timeoutSeconds: 10       # Number of seconds after which the probe times out
+          failureThreshold: 5     # How many times the probe can fail before the pod is marked as Unhealthy
+          successThreshold: 1      # Minimum number of consecutive successes before marking the container as started. For liveness probes, this is set to 1.
+          terminationGracePeriodSeconds: 30  # Time to wait before forcefully terminating the container if it doesn't respond in time
 
         # Readiness Probe - Determines if the application is ready to receive traffic
         readinessProbe:
           httpGet:
             path: /readiness-health  # Calls this endpoint to check if the app is ready
             port: 8080
-          initialDelaySeconds: 5   # How long to wait before running the first probe check
+          initialDelaySeconds: 10  # How long to wait before running the first probe check
           periodSeconds: 10        # How often (in seconds) to perform the probe
-          timeoutSeconds: 2        # Number of seconds after which the probe times out
-          failureThreshold: 3      # How many times the probe can fail before the pod is marked as Not Ready
-          successThreshold: 1      # Minimum number of consecutive successes before marking the container as Ready
+          timeoutSeconds: 10       # Number of seconds after which the probe times out
+          failureThreshold: 5     # How many times the probe can fail before the pod is marked as Unhealthy
+          successThreshold: 2      # Minimum number of consecutive successes before marking the container as started. For readiness probes, this can be set to x, where x is the number of times you want to ensure the app is ready before accepting traffic.
         env:
         - name: PRIME_NUMBER_COUNT
-          value: "1000"
+          value: "1000000"  # Environment variable to control the number of prime numbers to calculate. This will increase the startup time of the application.
 ---
 # ClusterIP Service - Exposes the application within the cluster
 apiVersion: v1

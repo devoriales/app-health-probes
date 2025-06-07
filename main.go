@@ -38,9 +38,10 @@ func simulateLongStartup(limit int) {
 		if isPrime(num) {
 			count++
 			// print out the count to the console
-			fmt.Printf("Count: %d\n", count)
+			fmt.Printf("%s, Count: %d\n", time.Now().Format("2006-01-02 15:04:05"), count)
 		}
-		if time.Since(start) > 60*time.Second { // Ensure we run for about 1 minute
+		if time.Since(start) > 120*time.Second { // Limit the startup time to 120 seconds
+			fmt.Println("Startup process took too long, exiting.")
 			break
 		}
 	}
@@ -53,6 +54,8 @@ func simulateLongStartup(limit int) {
 	_, err := os.Create("/tmp/startup-file")
 	// write to the file and date
 	err = os.WriteFile("/tmp/startup-file", []byte(`Startup complete at ` + time.Now().Format("2006-01-02T15:04:05")), 0644)
+	// print how long it took to complete the startup
+	fmt.Printf("Startup complete at %s, took %s\n", time.Now().Format("2006-01-02T15:04:05"), time.Since(start))
 	if err != nil {
 		log.Fatalf("Failed to create startup complete file: %v", err)
 	}
